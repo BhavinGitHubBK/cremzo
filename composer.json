@@ -12,6 +12,7 @@
         "barryvdh/laravel-dompdf": "^2.0",
         "brian2694/laravel-toastr": "^5.57",
         "doctrine/dbal": "^3.4",
+        "eyuva/laravel-whatsapp-btn": "^1.0@dev",
         "guzzlehttp/guzzle": "^7.2",
         "intervention/image": "^2.7",
         "laravel/framework": "^9.11",
