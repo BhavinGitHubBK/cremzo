@@ -10,7 +10,6 @@ use Aws\Api\TimestampShape;
 use Aws\CommandInterface;
 use Aws\EndpointV2\EndpointProviderV2;
 use Aws\EndpointV2\EndpointV2SerializerTrait;
-use Aws\EndpointV2\Ruleset\RulesetEndpoint;
 use GuzzleHttp\Psr7;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Uri;
@@ -50,7 +49,8 @@ abstract class RestSerializer
      */
     public function __invoke(
         CommandInterface $command,
-        $endpoint = null
+        $endpointProvider = null,
+        $clientArgs = null
     )
     {
         $operation = $this->api->getOperation($command->getName());
@@ -58,10 +58,17 @@ abstract class RestSerializer
         $opts = $this->serialize($operation, $commandArgs);
         $headers = isset($opts['headers']) ? $opts['headers'] : [];
 
-        if ($endpoint instanceof RulesetEndpoint) {
-            $this->setEndpointV2RequestOptions($endpoint, $headers);
+        if ($endpointProvider instanceof EndpointProviderV2) {
+            $this->setRequestOptions(
+                $endpointProvider,
+                $command,
+                $operation,
+                $commandArgs,
+                $clientArgs,
+                $headers
+            );
+            $this->endpoint = new Uri($this->endpoint);
         }
-
         $uri = $this->buildEndpoint($operation, $commandArgs, $opts);
 
         return new Request(
@@ -235,24 +242,14 @@ abstract class RestSerializer
                 $path = rtrim($path, '/');
             }
             $relative = $path . $relative;
-
-            if (strpos($relative, '../') !== false
-                || substr($relative, -2) === '..'
-            ) {
-                if ($relative[0] !== '/') {
-                    $relative = '/' . $relative;
-                }
-
-                return new Uri($this->endpoint->withPath('') . $relative);
-            }
         }
         // If endpoint has path, remove leading '/' to preserve URI resolution.
         if ($path && $relative[0] === '/') {
             $relative = substr($relative, 1);
         }
 
-        //Append path to endpoint when leading '//...'
-        // present as uri cannot be properly resolved
+        //Append path to endpoint when leading '//...' present
+        // as uri cannot be properly resolved
         if ($this->api->isModifiedModel()
             && strpos($relative, '//') === 0
         ) {

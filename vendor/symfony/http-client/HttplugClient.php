@@ -17,12 +17,15 @@ use GuzzleHttp\Promise\Utils;
 use Http\Client\Exception\NetworkException;
 use Http\Client\Exception\RequestException;
 use Http\Client\HttpAsyncClient;
-use Http\Discovery\Psr17Factory;
+use Http\Client\HttpClient as HttplugInterface;
+use Http\Discovery\Exception\NotFoundException;
 use Http\Discovery\Psr17FactoryDiscovery;
-use Nyholm\Psr7\Factory\Psr17Factory as NyholmPsr17Factory;
+use Http\Message\RequestFactory;
+use Http\Message\StreamFactory;
+use Http\Message\UriFactory;
+use Nyholm\Psr7\Factory\Psr17Factory;
 use Nyholm\Psr7\Request;
 use Nyholm\Psr7\Uri;
-use Psr\Http\Client\ClientInterface;
 use Psr\Http\Message\RequestFactoryInterface;
 use Psr\Http\Message\RequestInterface;
 use Psr\Http\Message\ResponseFactoryInterface;
@@ -32,32 +35,33 @@ use Psr\Http\Message\StreamInterface;
 use Psr\Http\Message\UriFactoryInterface;
 use Psr\Http\Message\UriInterface;
 use Symfony\Component\HttpClient\Internal\HttplugWaitLoop;
-use Symfony\Component\HttpClient\Internal\LegacyHttplugInterface;
 use Symfony\Component\HttpClient\Response\HttplugPromise;
 use Symfony\Contracts\HttpClient\Exception\TransportExceptionInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 use Symfony\Contracts\Service\ResetInterface;
 
-if (!interface_exists(HttpAsyncClient::class)) {
-    throw new \LogicException('You cannot use "Symfony\Component\HttpClient\HttplugClient" as the "php-http/httplug" package is not installed. Try running "composer require php-http/discovery php-http/async-client-implementation:*".');
+if (!interface_exists(HttplugInterface::class)) {
+    throw new \LogicException('You cannot use "Symfony\Component\HttpClient\HttplugClient" as the "php-http/httplug" package is not installed. Try running "composer require php-http/httplug".');
+}
+
+if (!interface_exists(RequestFactory::class)) {
+    throw new \LogicException('You cannot use "Symfony\Component\HttpClient\HttplugClient" as the "php-http/message-factory" package is not installed. Try running "composer require nyholm/psr7".');
 }
 
 if (!interface_exists(RequestFactoryInterface::class)) {
-    throw new \LogicException('You cannot use the "Symfony\Component\HttpClient\HttplugClient" as the "psr/http-factory" package is not installed. Try running "composer require php-http/discovery psr/http-factory-implementation:*".');
+    throw new \LogicException('You cannot use the "Symfony\Component\HttpClient\HttplugClient" as the "psr/http-factory" package is not installed. Try running "composer require nyholm/psr7".');
 }
 
 /**
  * An adapter to turn a Symfony HttpClientInterface into an Httplug client.
  *
- * In comparison to Psr18Client, this client supports asynchronous requests.
- *
- * Run "composer require php-http/discovery php-http/async-client-implementation:*"
- * to get the required dependencies.
+ * Run "composer require nyholm/psr7" to install an efficient implementation of response
+ * and stream factories with flex-provided autowiring aliases.
  *
  * @author Nicolas Grekas <p@tchwork.com>
  */
-final class HttplugClient implements ClientInterface, HttpAsyncClient, RequestFactoryInterface, StreamFactoryInterface, UriFactoryInterface, ResetInterface, LegacyHttplugInterface
+final class HttplugClient implements HttplugInterface, HttpAsyncClient, RequestFactoryInterface, StreamFactoryInterface, UriFactoryInterface, RequestFactory, StreamFactory, UriFactory, ResetInterface
 {
     private HttpClientInterface $client;
     private ResponseFactoryInterface $responseFactory;
@@ -77,16 +81,17 @@ final class HttplugClient implements ClientInterface, HttpAsyncClient, RequestFa
         $this->promisePool = class_exists(Utils::class) ? new \SplObjectStorage() : null;
 
         if (null === $responseFactory || null === $streamFactory) {
-            if (class_exists(Psr17Factory::class)) {
-                $psr17Factory = new Psr17Factory();
-            } elseif (class_exists(NyholmPsr17Factory::class)) {
-                $psr17Factory = new NyholmPsr17Factory();
-            } else {
-                throw new \LogicException('You cannot use the "Symfony\Component\HttpClient\HttplugClient" as no PSR-17 factories have been provided. Try running "composer require php-http/discovery psr/http-factory-implementation:*".');
+            if (!class_exists(Psr17Factory::class) && !class_exists(Psr17FactoryDiscovery::class)) {
+                throw new \LogicException('You cannot use the "Symfony\Component\HttpClient\HttplugClient" as no PSR-17 factories have been provided. Try running "composer require nyholm/psr7".');
             }
 
-            $responseFactory ??= $psr17Factory;
-            $streamFactory ??= $psr17Factory;
+            try {
+                $psr17Factory = class_exists(Psr17Factory::class, false) ? new Psr17Factory() : null;
+                $responseFactory ??= $psr17Factory ?? Psr17FactoryDiscovery::findResponseFactory();
+                $streamFactory ??= $psr17Factory ?? Psr17FactoryDiscovery::findStreamFactory();
+            } catch (NotFoundException $e) {
+                throw new \LogicException('You cannot use the "Symfony\Component\HttpClient\HttplugClient" as no PSR-17 factories have been found. Try running "composer require nyholm/psr7".', 0, $e);
+            }
         }
 
         $this->responseFactory = $responseFactory;
@@ -160,12 +165,12 @@ final class HttplugClient implements ClientInterface, HttpAsyncClient, RequestFa
         }
         if ($this->responseFactory instanceof RequestFactoryInterface) {
             $request = $this->responseFactory->createRequest($method, $uri);
-        } elseif (class_exists(Psr17FactoryDiscovery::class)) {
-            $request = Psr17FactoryDiscovery::findRequestFactory()->createRequest($method, $uri);
         } elseif (class_exists(Request::class)) {
             $request = new Request($method, $uri);
+        } elseif (class_exists(Psr17FactoryDiscovery::class)) {
+            $request = Psr17FactoryDiscovery::findRequestFactory()->createRequest($method, $uri);
         } else {
-            throw new \LogicException(sprintf('You cannot use "%s()" as no PSR-17 factories have been found. Try running "composer require php-http/discovery psr/http-factory-implementation:*".', __METHOD__));
+            throw new \LogicException(sprintf('You cannot use "%s()" as the "nyholm/psr7" package is not installed. Try running "composer require nyholm/psr7".', __METHOD__));
         }
 
         $request = $request
@@ -235,15 +240,15 @@ final class HttplugClient implements ClientInterface, HttpAsyncClient, RequestFa
             return $this->responseFactory->createUri($uri);
         }
 
-        if (class_exists(Psr17FactoryDiscovery::class)) {
-            return Psr17FactoryDiscovery::findUrlFactory()->createUri($uri);
-        }
-
         if (class_exists(Uri::class)) {
             return new Uri($uri);
         }
 
-        throw new \LogicException(sprintf('You cannot use "%s()" as no PSR-17 factories have been found. Try running "composer require php-http/discovery psr/http-factory-implementation:*".', __METHOD__));
+        if (class_exists(Psr17FactoryDiscovery::class)) {
+            return Psr17FactoryDiscovery::findUrlFactory()->createUri($uri);
+        }
+
+        throw new \LogicException(sprintf('You cannot use "%s()" as the "nyholm/psr7" package is not installed. Try running "composer require nyholm/psr7".', __METHOD__));
     }
 
     public function __sleep(): array
@@ -261,7 +266,7 @@ final class HttplugClient implements ClientInterface, HttpAsyncClient, RequestFa
         $this->wait();
     }
 
-    public function reset(): void
+    public function reset()
     {
         if ($this->client instanceof ResetInterface) {
             $this->client->reset();

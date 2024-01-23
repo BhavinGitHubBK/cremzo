@@ -23,6 +23,9 @@ class WildcardPermission implements Wildcard
     /** @var Collection */
     protected $parts;
 
+    /**
+     * @param  string  $permission
+     */
     public function __construct(string $permission)
     {
         $this->permission = $permission;
@@ -33,6 +36,7 @@ class WildcardPermission implements Wildcard
 
     /**
      * @param  string|WildcardPermission  $permission
+     * @return bool
      */
     public function implies($permission): bool
     {
@@ -66,6 +70,11 @@ class WildcardPermission implements Wildcard
         return true;
     }
 
+    /**
+     * @param  Collection  $part
+     * @param  Collection  $otherPart
+     * @return bool
+     */
     protected function containsAll(Collection $part, Collection $otherPart): bool
     {
         foreach ($otherPart->toArray() as $item) {
@@ -77,6 +86,9 @@ class WildcardPermission implements Wildcard
         return true;
     }
 
+    /**
+     * @return Collection
+     */
     public function getParts(): Collection
     {
         return $this->parts;
@@ -84,6 +96,8 @@ class WildcardPermission implements Wildcard
 
     /**
      * Sets the different parts and subparts from permission string.
+     *
+     * @return void
      */
     protected function setParts(): void
     {

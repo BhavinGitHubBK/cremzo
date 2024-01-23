@@ -47,10 +47,6 @@ final class AmpHttpClient implements HttpClientInterface, LoggerAwareInterface, 
     use HttpClientTrait;
     use LoggerAwareTrait;
 
-    public const OPTIONS_DEFAULTS = HttpClientInterface::OPTIONS_DEFAULTS + [
-        'crypto_method' => \STREAM_CRYPTO_METHOD_TLSv1_2_CLIENT,
-    ];
-
     private array $defaultOptions = self::OPTIONS_DEFAULTS;
     private static array $emptyDefaults = self::OPTIONS_DEFAULTS;
     private AmpClientState $multi;
@@ -102,7 +98,7 @@ final class AmpHttpClient implements HttpClientInterface, LoggerAwareInterface, 
         }
 
         if (!isset($options['normalized_headers']['user-agent'])) {
-            $options['headers'][] = 'User-Agent: Symfony HttpClient (Amp)';
+            $options['headers'][] = 'User-Agent: Symfony HttpClient/Amp';
         }
 
         if (0 < $options['max_duration']) {
@@ -157,7 +153,7 @@ final class AmpHttpClient implements HttpClientInterface, LoggerAwareInterface, 
         return new ResponseStream(AmpResponse::stream($responses, $timeout));
     }
 
-    public function reset(): void
+    public function reset()
     {
         $this->multi->dnsCache = [];
 

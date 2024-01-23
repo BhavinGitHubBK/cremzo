@@ -60,6 +60,8 @@ class PermissionRegistrar
 
     /**
      * PermissionRegistrar constructor.
+     *
+     * @param  \Illuminate\Cache\CacheManager  $cacheManager
      */
     public function __construct(CacheManager $cacheManager)
     {
@@ -128,6 +130,8 @@ class PermissionRegistrar
     /**
      * Register the permission check method on the gate.
      * We resolve the Gate fresh here, for benefit of long-running instances.
+     *
+     * @return bool
      */
     public function registerPermissions(): bool
     {
@@ -193,6 +197,10 @@ class PermissionRegistrar
 
     /**
      * Get the permissions based on the passed params.
+     *
+     * @param  array  $params
+     * @param  bool  $onlyOne
+     * @return \Illuminate\Database\Eloquent\Collection
      */
     public function getPermissions(array $params = [], bool $onlyOne = false): Collection
     {
@@ -219,6 +227,8 @@ class PermissionRegistrar
 
     /**
      * Get an instance of the permission class.
+     *
+     * @return \Spatie\Permission\Contracts\Permission
      */
     public function getPermissionClass(): Permission
     {
@@ -236,6 +246,8 @@ class PermissionRegistrar
 
     /**
      * Get an instance of the role class.
+     *
+     * @return \Spatie\Permission\Contracts\Role
      */
     public function getRoleClass(): Role
     {
@@ -268,6 +280,8 @@ class PermissionRegistrar
 
     /**
      * Changes array keys with alias
+     *
+     * @return array
      */
     private function aliasedArray($model): array
     {

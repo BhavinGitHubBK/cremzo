@@ -27,8 +27,6 @@ class Package
 
     public array $commands = [];
 
-    public array $consoleCommands = [];
-
     public array $viewComponents = [];
 
     public array $sharedViewData = [];
@@ -72,7 +70,7 @@ class Package
 
         $callable($installCommand);
 
-        $this->consoleCommands[] = $installCommand;
+        $this->commands[] = $installCommand;
 
         return $this;
     }
@@ -175,20 +173,6 @@ class Package
     public function hasCommands(...$commandClassNames): static
     {
         $this->commands = array_merge($this->commands, collect($commandClassNames)->flatten()->toArray());
-
-        return $this;
-    }
-
-    public function hasConsoleCommand(string $commandClassName): static
-    {
-        $this->consoleCommands[] = $commandClassName;
-
-        return $this;
-    }
-
-    public function hasConsoleCommands(...$commandClassNames): static
-    {
-        $this->consoleCommands = array_merge($this->consoleCommands, collect($commandClassNames)->flatten()->toArray());
 
         return $this;
     }

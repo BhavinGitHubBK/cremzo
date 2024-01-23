@@ -94,7 +94,9 @@ final class AmpClientState extends ClientState
         }
 
         $request->addEventListener(new AmpListener($info, $options['peer_fingerprint']['pin-sha256'] ?? [], $onProgress, $handle));
-        $request->setPushHandler(fn ($request, $response): Promise => $this->handlePush($request, $response, $options));
+        $request->setPushHandler(function ($request, $response) use ($options): Promise {
+            return $this->handlePush($request, $response, $options);
+        });
 
         ($request->hasHeader('content-length') ? new Success((int) $request->getHeader('content-length')) : $request->getBody()->getBodyLength())
             ->onResolve(static function ($e, $bodySize) use (&$info) {
@@ -126,10 +128,9 @@ final class AmpClientState extends ClientState
             'ciphers' => $options['ciphers'],
             'capture_peer_cert_chain' => $options['capture_peer_cert_chain'] || $options['peer_fingerprint'],
             'proxy' => $options['proxy'],
-            'crypto_method' => $options['crypto_method'],
         ];
 
-        $key = hash('xxh128', serialize($options));
+        $key = md5(serialize($options));
 
         if (isset($this->clients[$key])) {
             return $this->clients[$key];
@@ -142,7 +143,6 @@ final class AmpClientState extends ClientState
         $options['local_cert'] && $context = $context->withCertificate(new Certificate($options['local_cert'], $options['local_pk']));
         $options['ciphers'] && $context = $context->withCiphers($options['ciphers']);
         $options['capture_peer_cert_chain'] && $context = $context->withPeerCapturing();
-        $options['crypto_method'] && $context = $context->withMinimumVersion($options['crypto_method']);
 
         $connector = $handleConnector = new class() implements Connector {
             public $connector;

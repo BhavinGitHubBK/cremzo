@@ -27,7 +27,7 @@ use Symfony\Contracts\HttpClient\ResponseInterface;
  *
  * @author Nicolas Grekas <p@tchwork.com>
  */
-class AsyncResponse implements ResponseInterface, StreamableInterface
+final class AsyncResponse implements ResponseInterface, StreamableInterface
 {
     use CommonResponseTrait;
 
@@ -123,9 +123,6 @@ class AsyncResponse implements ResponseInterface, StreamableInterface
         return $this->info + $this->response->getInfo();
     }
 
-    /**
-     * @return resource
-     */
     public function toStream(bool $throw = true)
     {
         if ($throw) {

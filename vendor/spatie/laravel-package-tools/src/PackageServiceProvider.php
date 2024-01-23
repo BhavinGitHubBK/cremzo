@@ -104,10 +104,6 @@ abstract class PackageServiceProvider extends ServiceProvider
             $this->commands($this->package->commands);
         }
 
-        if (! empty($this->package->consoleCommands) && $this->app->runningInConsole()) {
-            $this->commands($this->package->consoleCommands);
-        }
-
         if ($this->package->hasTranslations) {
             $this->loadTranslationsFrom(
                 $this->package->basePath('/../resources/lang/'),

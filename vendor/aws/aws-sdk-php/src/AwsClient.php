@@ -6,8 +6,6 @@ use Aws\Api\DocModel;
 use Aws\Api\Service;
 use Aws\EndpointDiscovery\EndpointDiscoveryMiddleware;
 use Aws\EndpointV2\EndpointProviderV2;
-use Aws\EndpointV2\EndpointV2Middleware;
-use Aws\Exception\AwsException;
 use Aws\Signature\SignatureProvider;
 use GuzzleHttp\Psr7\Uri;
 
@@ -237,16 +235,13 @@ class AwsClient implements AwsClientInterface
         $this->addInvocationId();
         $this->addEndpointParameterMiddleware($args);
         $this->addEndpointDiscoveryMiddleware($config, $args);
-        $this->addRequestCompressionMiddleware($config);
         $this->loadAliases();
         $this->addStreamRequestPayload();
         $this->addRecursionDetection();
-        if ($this->isUseEndpointV2()) {
-            $this->addEndpointV2Middleware();
-        }
+        $this->addRequestBuilder();
 
-        if (!is_null($this->api->getMetadata('awsQueryCompatible'))) {
-            $this->addQueryCompatibleInputMiddleware($this->api);
+        if (!$config['suppress_php_deprecation_warning']) {
+            $this->emitDeprecationWarning();
         }
 
         if (isset($args['with_resolved'])) {
@@ -363,7 +358,7 @@ class AwsClient implements AwsClientInterface
         $klass = get_class($this);
 
         if ($klass === __CLASS__) {
-            return ['', AwsException::class];
+            return ['', 'Aws\Exception\AwsException'];
         }
 
         $service = substr($klass, strrpos($klass, '\\') + 1, -6);
@@ -448,33 +443,9 @@ class AwsClient implements AwsClientInterface
             return SignatureProvider::resolve($provider, $version, $name, $region);
         };
         $this->handlerList->appendSign(
-            Middleware::signer($this->credentialProvider,
-                $resolver,
-                $this->tokenProvider,
-                $this->getConfig()
-            ),
+            Middleware::signer($this->credentialProvider, $resolver, $this->tokenProvider),
             'signer'
         );
-    }
-
-    private function addRequestCompressionMiddleware($config)
-    {
-        if (empty($config['disable_request_compression'])) {
-            $list = $this->getHandlerList();
-            $list->appendBuild(
-                RequestCompressionMiddleware::wrap($config),
-                'request-compression'
-            );
-        }
-    }
-
-    private function addQueryCompatibleInputMiddleware(Service $api)
-    {
-            $list = $this->getHandlerList();
-            $list->appendValidate(
-                QueryCompatibleInputMiddleware::wrap($api),
-                'query-compatible-input'
-            );
     }
 
     private function addInvocationId()
@@ -519,18 +490,24 @@ class AwsClient implements AwsClientInterface
         );
     }
 
-    private function addEndpointV2Middleware()
+    /**
+     * Adds the `builder` middleware such that a client's endpoint
+     * provider and endpoint resolution arguments can be passed.
+     */
+    private function addRequestBuilder()
     {
-        $list = $this->getHandlerList();
+        $handlerList = $this->getHandlerList();
+        $serializer = $this->serializer;
+        $endpointProvider = $this->endpointProvider;
         $endpointArgs = $this->getEndpointProviderArgs();
 
-        $list->prependBuild(
-            EndpointV2Middleware::wrap(
-                $this->endpointProvider,
-                $this->getApi(),
+        $handlerList->prependBuild(
+            Middleware::requestBuilder(
+                $serializer,
+                $endpointProvider,
                 $endpointArgs
             ),
-            'endpoint-resolution'
+            'builderV2'
         );
     }
 

@@ -4,7 +4,6 @@ namespace Aws\Signature;
 use Aws\Credentials\CredentialsInterface;
 use AWS\CRT\Auth\Signable;
 use AWS\CRT\Auth\SignatureType;
-use AWS\CRT\Auth\SignedBodyHeaderType;
 use AWS\CRT\Auth\Signing;
 use AWS\CRT\Auth\SigningAlgorithm;
 use AWS\CRT\Auth\SigningConfigAWS;
@@ -447,7 +446,7 @@ class SignatureV4 implements SignatureInterface
         );
     }
 
-    protected function verifyCRTLoaded()
+    private function verifyCRTLoaded()
     {
         if (!extension_loaded('awscrt')) {
             throw new CommonRuntimeException(
@@ -458,7 +457,7 @@ class SignatureV4 implements SignatureInterface
         }
     }
 
-    protected function createCRTStaticCredentialsProvider($credentials)
+    private function createCRTStaticCredentialsProvider($credentials)
     {
         return new StaticCredentialsProvider([
             'access_key_id' => $credentials->getAccessKeyId(),
@@ -473,7 +472,7 @@ class SignatureV4 implements SignatureInterface
             self::AMZ_CONTENT_SHA256_HEADER,
             "aws-sdk-invocation-id",
             "aws-sdk-retry",
-            'x-amz-region-set',
+            'x-amz-region-set'
         ];
         $storedHeaders = [];
 
@@ -501,23 +500,17 @@ class SignatureV4 implements SignatureInterface
      * @param CredentialsInterface $credentials
      * @param RequestInterface $request
      * @param $signingService
-     * @param SigningConfigAWS|null $signingConfig
      * @return RequestInterface
      */
-    protected function signWithV4a(
-        CredentialsInterface $credentials,
-        RequestInterface $request,
-        $signingService,
-        SigningConfigAWS $signingConfig = null
-    ){
+    protected function signWithV4a(CredentialsInterface $credentials, RequestInterface $request, $signingService)
+    {
         $this->verifyCRTLoaded();
-        $signingConfig = $signingConfig ?? new SigningConfigAWS([
+        $credentials_provider = $this->createCRTStaticCredentialsProvider($credentials);
+        $signingConfig = new SigningConfigAWS([
             'algorithm' => SigningAlgorithm::SIGv4_ASYMMETRIC,
             'signature_type' => SignatureType::HTTP_REQUEST_HEADERS,
-            'credentials_provider' => $this->createCRTStaticCredentialsProvider($credentials),
+            'credentials_provider' => $credentials_provider,
             'signed_body_value' => $this->getPayload($request),
-            'should_normalize_uri_path' => true,
-            'use_double_uri_encode' => true,
             'region' => "*",
             'service' => $signingService,
             'date' => time(),

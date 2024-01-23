@@ -47,6 +47,7 @@ final class AmpResponse implements ResponseInterface, StreamableInterface
 
     private AmpClientState $multi;
     private ?array $options;
+    private CancellationTokenSource $canceller;
     private \Closure $onProgress;
 
     private static ?string $delay = null;
@@ -66,11 +67,13 @@ final class AmpResponse implements ResponseInterface, StreamableInterface
             $request->setHeader('Accept-Encoding', 'gzip');
         }
 
-        $this->initializer = static fn (self $response) => null !== $response->options;
+        $this->initializer = static function (self $response) {
+            return null !== $response->options;
+        };
 
         $info = &$this->info;
         $headers = &$this->headers;
-        $canceller = new CancellationTokenSource();
+        $canceller = $this->canceller = new CancellationTokenSource();
         $handle = &$this->handle;
 
         $info['url'] = (string) $request->getUri();
@@ -100,7 +103,7 @@ final class AmpResponse implements ResponseInterface, StreamableInterface
         $throttleWatcher = null;
 
         $this->id = $id = self::$nextId++;
-        Loop::defer(static function () use ($request, $multi, $id, &$info, &$headers, $canceller, &$options, $onProgress, &$handle, $logger, &$pause) {
+        Loop::defer(static function () use ($request, $multi, &$id, &$info, &$headers, $canceller, &$options, $onProgress, &$handle, $logger, &$pause) {
             return new Coroutine(self::generateResponse($request, $multi, $id, $info, $headers, $canceller, $options, $onProgress, $handle, $logger, $pause));
         });
 
@@ -346,7 +349,7 @@ final class AmpResponse implements ResponseInterface, StreamableInterface
             }
 
             foreach ($originRequest->getRawHeaders() as [$name, $value]) {
-                $request->addHeader($name, $value);
+                $request->setHeader($name, $value);
             }
 
             if ($request->getUri()->getAuthority() !== $originRequest->getUri()->getAuthority()) {
