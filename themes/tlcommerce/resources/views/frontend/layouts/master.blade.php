@@ -113,7 +113,7 @@ $site_default_mood = isset($site_mood_setting['site_default_screen_mood']) && $s
         if (locale == null) {
             localStorage.setItem('locale', '<?php echo $default_language; ?>');
         }
-        //set selected currency
+        //set selected currency.i65
         let currency = localStorage.getItem('currency');
 
         if (currency == null) {
